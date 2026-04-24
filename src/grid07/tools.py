@@ -122,10 +122,21 @@ _HEADLINES: dict[str, list[str]] = {
 }
 
 
-
-
 @tool
 def mock_searxng_search(query: str) -> str:
+    """
+    Search for recent news headlines relevant to the query.
+
+    Simulates a SearXNG web search by matching query keywords against
+    a curated headline database. Returns up to 5 relevant headlines
+    as a formatted string for the LLM to use as real-world context.
+
+    Args:
+        query: Natural language search query from the bot.
+
+    Returns:
+        Formatted string of matching headlines, or a no-results message.
+    """
     query_lower = query.lower()
     matched: list[str] = []
 
