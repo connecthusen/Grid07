@@ -1,7 +1,8 @@
-
 from dataclasses import dataclass
 
 
+# Bot dataclass — holds identity, persona keywords, and system prompt
+# in: id(str), name(str), persona_vector_text(str), system_prompt(str)
 @dataclass
 class Bot:
     id                 : str
@@ -10,8 +11,7 @@ class Bot:
     system_prompt      : str
 
 
-# ── Bot A — Tech Maximalist ────────────────────────────────────────────────────
-
+# Bot A — Tech Maximalist
 BOT_A = Bot(
     id="Bot_A",
     name="Tech Maximalist",
@@ -46,6 +46,7 @@ BOT_A = Bot(
     ),
 )
 
+# Bot B — Doomer / Skeptic
 BOT_B = Bot(
     id="Bot_B",
     name="Doomer / Skeptic",
@@ -82,7 +83,7 @@ BOT_B = Bot(
     ),
 )
 
-
+# Bot C — Finance Bro
 BOT_C = Bot(
     id="Bot_C",
     name="Finance Bro",
@@ -118,11 +119,13 @@ BOT_C = Bot(
     ),
 )
 
+# all bots indexed by id for easy lookup
 BOTS: dict[str, Bot] = {
     bot.id: bot for bot in [BOT_A, BOT_B, BOT_C]
 }
 
 
+# in: bot_id(str) | out: Bot | raises ValueError if not found
 def get_bot(bot_id: str) -> Bot:
     if bot_id not in BOTS:
         raise ValueError(

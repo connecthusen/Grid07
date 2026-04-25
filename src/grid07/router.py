@@ -1,5 +1,4 @@
 
-
 from __future__ import annotations
 
 import uuid
@@ -13,15 +12,12 @@ from grid07.personas import BOTS, Bot
 
 log = get_logger(__name__)
 
-# ChromaDB collection name for persona vectors
 _COLLECTION_NAME = "bot_personas"
 _EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# § 1  DATA MODEL
-# ══════════════════════════════════════════════════════════════════════════════
-
+# RouteMatch — result of matching a post to a bot
+# in: bot(Bot), score(float), matched(bool)
 @dataclass(frozen=True)
 class RouteMatch:
     bot    : Bot
@@ -29,38 +25,17 @@ class RouteMatch:
     matched: bool
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# § 2  PERSONA ROUTER (ChromaDB)
-# ══════════════════════════════════════════════════════════════════════════════
-
+# PersonaRouter — routes posts to bots via ChromaDB cosine similarity
+# embeds all bot personas at startup, then scores incoming posts against them
 class PersonaRouter:
-    """
-    Routes incoming posts to matching bots via ChromaDB vector similarity.
 
-    Initialisation (once at startup):
-        - Creates an in-memory ChromaDB client
-        - Embeds each bot's persona_vector_text with sentence-transformers
-        - Stores all persona vectors in a single ChromaDB collection
-
-    Per-post routing:
-        - Embeds the post with the same model
-        - Queries ChromaDB → returns distances for all bots
-        - Converts distances to similarity scores
-        - Applies threshold → returns RouteMatch list
-
-    Note on ChromaDB distances:
-        ChromaDB returns cosine DISTANCE (0 = identical, 2 = opposite).
-        We convert to similarity:  similarity = 1 - (distance / 2)
-        This maps the result to [0.0, 1.0] matching standard cosine similarity.
-    """
-
+    # sets up ChromaDB, embeds all bot persona vectors
     def __init__(self) -> None:
         self._bot_list  : list[Bot] = list(BOTS.values())
         self._embed_fn              = SentenceTransformerEmbeddingFunction(
             model_name = _EMBEDDING_MODEL
         )
 
-        # in-memory ChromaDB — no disk, clean state on every run
         self._client     = chromadb.Client()
         self._collection = self._client.create_collection(
             name               = _COLLECTION_NAME,
@@ -68,7 +43,6 @@ class PersonaRouter:
             metadata           = {"hnsw:space": "cosine"},
         )
 
-        # embed and store all persona vectors
         self._collection.add(
             ids        = [bot.id for bot in self._bot_list],
             documents  = [bot.persona_vector_text for bot in self._bot_list],
@@ -82,13 +56,10 @@ class PersonaRouter:
             settings.SIMILARITY_THRESHOLD,
         )
 
-    # ── private ───────────────────────────────────────────────────────────────
-
+    # embeds post, queries ChromaDB, converts distance → similarity score
+    # ChromaDB gives cosine distance (0=identical, 2=opposite) → similarity = 1 - (distance/2)
+    # in: post_content(str) | out: list[RouteMatch] sorted by score desc
     def _query(self, post_content: str) -> list[RouteMatch]:
-        """
-        Embed post, query ChromaDB, convert distances → RouteMatch list.
-        Results sorted by score descending (best match first).
-        """
         threshold = settings.SIMILARITY_THRESHOLD
         n         = len(self._bot_list)
 
@@ -100,9 +71,6 @@ class PersonaRouter:
         ids       = results["ids"][0]
         distances = results["distances"][0]
 
-        # ChromaDB cosine distance → similarity score
-        # distance=0 means identical → similarity=1.0
-        # distance=2 means opposite  → similarity=0.0
         matches: list[RouteMatch] = []
         for bot_id, distance in zip(ids, distances):
             score   = round(1 - (distance / 2), 4)
@@ -127,20 +95,13 @@ class PersonaRouter:
 
         return matches
 
-    # ── public API ────────────────────────────────────────────────────────────
-
+    # returns all bots with their scores — matched flag set based on threshold
+    # in: post_content(str), threshold(float|None) | out: list[RouteMatch]
     def route_post_to_bots(
         self,
         post_content : str,
         threshold    : float | None = None,
     ) -> list[RouteMatch]:
-        """
-        Score all bots against the post. Returns ALL results sorted by score.
-        Matches threshold from settings unless overridden.
-
-        Named to match the assignment spec:
-            route_post_to_bots(post_content: str, threshold: float = 0.85)
-        """
         if threshold is not None:
             original          = settings.SIMILARITY_THRESHOLD
             settings.SIMILARITY_THRESHOLD = threshold
@@ -150,15 +111,13 @@ class PersonaRouter:
 
         return self._query(post_content)
 
+    # returns only bots that passed the threshold
+    # in: post_content(str), threshold(float|None) | out: list[RouteMatch]
     def get_matches(
         self,
         post_content : str,
         threshold    : float | None = None,
     ) -> list[RouteMatch]:
-        """
-        Return ONLY bots that matched (score >= threshold).
-        Used by main.py and tests.
-        """
         return [
             r for r in self.route_post_to_bots(post_content, threshold)
             if r.matched

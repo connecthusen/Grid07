@@ -7,7 +7,7 @@ from grid07.personas import BOTS
 
 router = PersonaRouter()
 
-
+# sample posts for testing — covers different bot territories + edge cases
 POSTS = {
     "ai_tech"   : "OpenAI released a new model replacing junior developers. Elon Musk says AGI is near.",
     "finance"   : "Fed raised interest rates 50 basis points. S&P 500 ETF futures down. Hedge funds repositioning.",
@@ -19,11 +19,13 @@ POSTS = {
 T = 0.20   # working threshold for TF-IDF
 
 
+# helper — returns matched bot ids for a post
+# in: post(str), threshold(float) | out: list[str]
 def ids(post: str, threshold: float = T) -> list[str]:
     return [m.bot.id for m in router.get_matches(post, threshold=threshold)]
 
 
-
+# routing accuracy — correct bot matched for each topic
 @pytest.mark.parametrize("post_key, expected_bot", [
     ("ai_tech",    "Bot_A"),
     ("finance",    "Bot_C"),
@@ -44,9 +46,7 @@ def test_finance_does_not_bleed_to_wrong_bots():
     assert "Bot_B" not in matched
 
 
-#  2  RETURN CONTRACT
-
-
+# return contract — shape and types of results
 def test_route_returns_entry_for_every_bot():
     results = router.route(POSTS["ai_tech"], threshold=0.0)
     assert len(results) == len(BOTS)
@@ -73,8 +73,7 @@ def test_get_matches_is_filtered_subset_of_route():
     assert matched == [r for r in results if r.matched]
 
 
-# § 3  THRESHOLD BEHAVIOUR
-
+# threshold behaviour
 def test_threshold_zero_matches_all_nonzero_bots():
     results = router.get_matches(POSTS["ai_tech"], threshold=0.0)
     assert any(r.bot.id == "Bot_A" for r in results)
@@ -90,14 +89,12 @@ def test_lower_threshold_yields_more_or_equal_matches():
     assert len(low) >= len(high)
 
 
-
-#  4  EDGE CASES
-
+# edge cases — none of these should crash
 @pytest.mark.parametrize("post", [
-    "",                          # empty
-    "bitcoin " * 500,            # very long
-    " OpenAI!!! #AGI $$$ ",  # special chars / emoji
-    "AI",                        # single short word
+    "",
+    "bitcoin " * 500,
+    " OpenAI!!! #AGI $$$ ",
+    "AI",
 ])
 def test_edge_case_does_not_crash(post):
     results = router.route(post, threshold=0.0)
@@ -105,29 +102,23 @@ def test_edge_case_does_not_crash(post):
     assert all(isinstance(r.score, float) for r in results)
 
 
-
-
 if __name__ == "__main__":
     import sys
 
     suites = {
-        # 1 routing accuracy
         "AI/Tech → Bot_A"              : lambda: test_correct_bot_matched("ai_tech",    "Bot_A"),
         "Finance → Bot_C"              : lambda: test_correct_bot_matched("finance",    "Bot_C"),
         "Monopoly → Bot_B"             : lambda: test_correct_bot_matched("monopoly",   "Bot_B"),
         "Crypto+Finance → Bot_C"       : lambda: test_correct_bot_matched("crypto_fin", "Bot_C"),
         "Unrelated → nobody"           : test_unrelated_matches_nobody,
         "Finance ≠ Bot_A / Bot_B"      : test_finance_does_not_bleed_to_wrong_bots,
-        #  2 return contract
         "route() covers all bots"      : test_route_returns_entry_for_every_bot,
         "results sorted descending"    : test_results_sorted_descending,
         "RouteMatch types + range"     : test_routematch_types_and_range,
         "get_matches ⊆ route()"        : test_get_matches_is_filtered_subset_of_route,
-        #  3 threshold
         "threshold=0.0 → nonzero hit"  : test_threshold_zero_matches_all_nonzero_bots,
         "threshold=1.0 → nobody"       : test_threshold_one_matches_nobody,
         "lower threshold ≥ matches"    : test_lower_threshold_yields_more_or_equal_matches,
-        # 4 edge cases
         "empty string"                 : lambda: test_edge_case_does_not_crash(""),
         "very long post"               : lambda: test_edge_case_does_not_crash("bitcoin " * 500),
         "special chars / emoji"        : lambda: test_edge_case_does_not_crash("🚀 OpenAI!!! #AGI $$$"),

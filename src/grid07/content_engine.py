@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing   import Any
@@ -15,29 +14,28 @@ from grid07.tools    import mock_searxng_search
 log = get_logger(__name__)
 
 
-
-#  1  DATA MODELS
-
+# GraphState — shared state passed between LangGraph nodes
+# in: bot, search_query, search_results, post_output
 class GraphState(BaseModel):
-    bot            : Any  = None   # Bot dataclass
+    bot            : Any  = None
     search_query   : str  = ""
     search_results : str  = ""
-    post_output    : Any  = None   # PostOutput once Node 3 runs
+    post_output    : Any  = None
 
     class Config:
         arbitrary_types_allowed = True
 
 
+# PostOutput — structured output returned after post is drafted
+# in: bot_id(str), topic(str), post_content(str)
 class PostOutput(BaseModel):
     bot_id      : str = Field(description="Bot identifier e.g. Bot_A")
     topic       : str = Field(description="One-line topic the post is about")
     post_content: str = Field(description="The actual post — max 280 characters, opinionated")
 
 
-
-# § 2  LLM
-
-
+# returns configured Groq LLM instance
+# out: ChatGroq
 def _get_llm() -> ChatGroq:
     return ChatGroq(
         api_key     = settings.GROQ_API_KEY,
@@ -46,9 +44,8 @@ def _get_llm() -> ChatGroq:
     )
 
 
-
-# 3  NODES
-
+# Node 1 — bot decides what topic to search based on its persona
+# in: GraphState | out: dict with search_query
 def node_decide_search(state: GraphState) -> dict:
 
     bot = state.bot
@@ -72,6 +69,8 @@ def node_decide_search(state: GraphState) -> dict:
     return {"search_query": search_query}
 
 
+# Node 2 — runs the mock search tool with the query from Node 1
+# in: GraphState | out: dict with search_results
 def node_web_search(state: GraphState) -> dict:
 
     query = state.search_query
@@ -84,6 +83,8 @@ def node_web_search(state: GraphState) -> dict:
     return {"search_results": results}
 
 
+# Node 3 — drafts the final post using search results and bot persona
+# in: GraphState | out: dict with post_output
 def node_draft_post(state: GraphState) -> dict:
 
     bot     = state.bot
@@ -109,7 +110,6 @@ def node_draft_post(state: GraphState) -> dict:
 
     post: PostOutput = structured_llm.invoke(msgs)
 
-    # hard enforce character limit
     if len(post.post_content) > settings.MAX_POST_CHARS:
         post = PostOutput(
             bot_id       = post.bot_id,
@@ -122,10 +122,8 @@ def node_draft_post(state: GraphState) -> dict:
     return {"post_output": post}
 
 
-
-#  4  GRAPH ASSEMBLY
-
-
+# builds and compiles the LangGraph pipeline: decide_search → web_search → draft_post
+# out: compiled graph
 def _build_graph():
     graph = StateGraph(GraphState)
 
@@ -144,9 +142,8 @@ def _build_graph():
 _graph = _build_graph()
 
 
-
-#  5  PUBLIC API
-
+# entry point — runs the full graph for a bot and returns its generated post
+# in: bot(Bot) | out: PostOutput
 def generate_post(bot: Bot) -> PostOutput:
 
     log.info("Content engine starting — %s (%s)", bot.id, bot.name)

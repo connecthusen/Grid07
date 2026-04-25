@@ -1,14 +1,12 @@
-
 from langchain_core.tools import tool
 from grid07.config import get_logger
 
 log = get_logger(__name__)
 
 
-
+# mock headline database — keyword → list of headlines
 _HEADLINES: dict[str, list[str]] = {
 
-    # AI / LLM
     "ai": [
         "OpenAI releases GPT-5 with advanced reasoning capabilities",
         "Google DeepMind's Gemini Ultra beats humans on 90% of benchmarks",
@@ -26,8 +24,6 @@ _HEADLINES: dict[str, list[str]] = {
         "Mistral overtakes GPT-4 on coding benchmarks",
         "LLM hallucination rates drop 60% with new training techniques",
     ],
-
-    # Crypto / Blockchain
     "crypto": [
         "Bitcoin surges past $95,000 as institutional demand explodes",
         "SEC approves spot Ethereum ETF — markets rally hard",
@@ -43,8 +39,6 @@ _HEADLINES: dict[str, list[str]] = {
         "Ethereum staking yields rise to 6.2% post-merge upgrades",
         "ETH L2 networks process more transactions than Ethereum mainnet",
     ],
-
-    # Finance / Markets
     "stock": [
         "S&P 500 hits record high on strong earnings season",
         "Tech stocks lead rally as Nasdaq gains 2.3% in a single session",
@@ -69,8 +63,6 @@ _HEADLINES: dict[str, list[str]] = {
         "Spot Ethereum ETF approved — crypto markets surge 15%",
         "Gold ETF sees largest outflow in 5 years as crypto competes",
     ],
-
-    # Big Tech / Monopoly
     "google": [
         "DOJ antitrust trial finds Google illegally monopolized search",
         "Google fined $5B by EU for anti-competitive Android practices",
@@ -90,8 +82,6 @@ _HEADLINES: dict[str, list[str]] = {
         "Microsoft Copilot integrated into every Office product globally",
         "Microsoft-Activision deal faces new EU scrutiny over game market",
     ],
-
-    # Privacy / Surveillance
     "privacy": [
         "New EU AI Act mandates transparency for all AI-generated content",
         "NSA bulk data collection program ruled unconstitutional",
@@ -102,8 +92,6 @@ _HEADLINES: dict[str, list[str]] = {
         "UK government proposes mass surveillance of private messages",
         "Clearview AI fined $10M for scraping billions of photos without consent",
     ],
-
-    # Elon Musk / Tesla / SpaceX
     "elon": [
         "Elon Musk's xAI raises $6B to compete with OpenAI",
         "Musk claims Grok 3 will surpass all existing AI models by Q3",
@@ -122,6 +110,8 @@ _HEADLINES: dict[str, list[str]] = {
 }
 
 
+# mock search tool — matches query keywords against _HEADLINES, returns up to 5 results
+# in: query(str) | out: str (formatted headline list or no-results message)
 @tool
 def mock_searxng_search(query: str) -> str:
     """
@@ -143,7 +133,7 @@ def mock_searxng_search(query: str) -> str:
     for keyword, headlines in _HEADLINES.items():
         if keyword in query_lower:
             for h in headlines:
-                if h not in matched:       
+                if h not in matched:
                     matched.append(h)
 
     results = matched[:5] if matched else [
